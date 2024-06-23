@@ -1,13 +1,13 @@
 import { JSDOM } from 'jsdom';
 
 async function crawlPage(baseURL, currentURL = baseURL, pages = {}) {
-	const baseURLObj = new URL(baseURL);
-	const currentURLObj = new URL(currentURL);
+	let baseURLObj = new URL(baseURL);
+	let currentURLObj = new URL(currentURL);
 	if (baseURLObj.hostname !== currentURLObj.hostname) {
 		return pages;
 	}
 
-	const normalizedCurrentURL = normalizeURL(currentURL);
+	let normalizedCurrentURL = normalizeURL(currentURL);
 	if (pages[normalizedCurrentURL] > 0) {
 		pages[normalizedCurrentURL]++;
 		return pages;
@@ -15,11 +15,16 @@ async function crawlPage(baseURL, currentURL = baseURL, pages = {}) {
 
 	pages[normalizedCurrentURL] = 1;
 	console.log(`Actively crawling: ${currentURL}`);
-	const htmlBody = await fetchHTML(currentURL)
-	const nextURLs = getURLsFromHTML(htmlBody, baseURL);
-	for (let nextURL of nextURLs) {
-		pages = await crawlPage(baseURL, nextURL, pages);
-	}	
+	let htmlBody = null;
+	try {
+		htmlBody = await fetchHTML(currentURL)
+		let nextURLs = getURLsFromHTML(htmlBody, baseURL);
+		for (let nextURL of nextURLs) {
+			pages = await crawlPage(baseURL, nextURL, pages);
+		}
+	} catch (err) {
+		console.log(`${err.message}`)
+	}
 
 	return pages;
 }
@@ -29,13 +34,11 @@ async function fetchHTML(url) {
 	try {
 		res = await fetch(url);
 		if (res.status >= 400) {
-			console.log(`Got HTTP error on ${url}, code: ${res.status}`);
-			return pages;
+			throw new Error(`Got HTTP error on ${url}, code: ${res.status}`);
 		}
-		const contentType = res.headers.get('content-type');
+		let contentType = res.headers.get('content-type');
 		if (!contentType || !contentType.includes('text/html')) {
-			console.log(`Non HTML response, content-type ${contentType}, on page ${url}`);
-			return pages;
+			throw new Error(`Non HTML response, content-type ${contentType}, on page ${url}`);
 		}
 
 		return res.text();
